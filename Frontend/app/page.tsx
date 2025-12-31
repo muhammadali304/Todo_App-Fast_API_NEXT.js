@@ -9,7 +9,11 @@ import { todoService } from '@/lib/todoService'
 
 // Animated Loading Component (defined outside main function to avoid hoisting issues)
 const AnimatedLoadingScreen = () => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8 transition-colors duration-300 flex items-center justify-center">
+  <motion.div
+    initial={{ opacity: 1 }}
+    exit={{ opacity: 0, transition: { duration: 0.5 } }}
+    className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8 transition-colors duration-300 flex items-center justify-center"
+  >
     <div className="flex flex-col items-center justify-center space-y-6">
       <motion.div
         className="p-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white"
@@ -21,12 +25,12 @@ const AnimatedLoadingScreen = () => (
           scale: {
             repeat: Infinity,
             repeatType: "reverse",
-            duration: 1.5,
+            duration: 1,
           },
           rotate: {
             repeat: Infinity,
             repeatType: "reverse",
-            duration: 3,
+            duration: 2,
           },
         }}
       >
@@ -41,7 +45,7 @@ const AnimatedLoadingScreen = () => (
         TODO APP
       </motion.div>
     </div>
-  </div>
+  </motion.div>
 );
 
 export default function TodoPage() {
@@ -53,6 +57,7 @@ export default function TodoPage() {
   })
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [minLoadingTimeReached, setMinLoadingTimeReached] = useState(false)
   const [darkMode, setDarkMode] = useState(true)
 
   // Toggle dark mode
@@ -64,12 +69,22 @@ export default function TodoPage() {
     }
   }, [darkMode])
 
+  // Ensure minimum loading time of 1 second
+  useEffect(() => {
+    const minLoadingTimer = setTimeout(() => {
+      setMinLoadingTimeReached(true);
+    }, 1000);
+
+    return () => clearTimeout(minLoadingTimer);
+  }, []);
+
   // Load todos from API
   useEffect(() => {
     fetchTodos()
   }, [])
 
   const fetchTodos = async () => {
+    const startTime = Date.now();
     setLoading(true);
     try {
       const data = await todoService.getAllTodos();
@@ -77,7 +92,13 @@ export default function TodoPage() {
     } catch (error) {
       console.error('Error fetching todos:', error);
     } finally {
-      setLoading(false);
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = Math.max(0, 1000 - elapsedTime);
+
+      // Wait for the minimum loading time if needed, then set loading to false
+      setTimeout(() => {
+        setLoading(false);
+      }, remainingTime);
     }
   };
 
@@ -134,13 +155,20 @@ export default function TodoPage() {
     }
   }
 
-  if (loading) {
-    return <AnimatedLoadingScreen />;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8 transition-colors duration-300">
-      <div className="max-w-2xl mx-auto">
+    <AnimatePresence mode="wait">
+      {loading ? (
+        <AnimatedLoadingScreen key="loading" />
+      ) : (
+        <motion.div
+          key="content"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8 transition-colors duration-300"
+        >
+          <div className="max-w-2xl mx-auto">
         {/* Header */}
         <header className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Todo App</h1>
@@ -214,7 +242,9 @@ export default function TodoPage() {
           onDelete={deleteTodo}
           onEdit={editTodo}
         />
-      </div>
-    </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
